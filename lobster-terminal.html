@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lobster Terminal</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+:root{
+  --bg:#07070a; --bg2:#0c0c10; --bg3:#111115; --panel:#0e0e12;
+  --b1:#1a1a22; --b2:#242430;
+  --green:#00ff88; --red:#ff3355; --yellow:#ffcc00; --orange:#ff8800;
+  --cyan:#00ccff; --purple:#aa66ff;
+  --t1:#c2c2ce; --t2:#6e6e84; --t3:#404056; --white:#eeeef8;
+  --lb:#ff4466; --lb2:#ff7090;
+  --gold:#ffd700; --mg:#a78bfa;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--t1);font-family:'JetBrains Mono',monospace;font-size:13px;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);pointer-events:none;z-index:9999}
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%);pointer-events:none;z-index:9998}
+
+.win{width:100%;max-width:1300px;border:1px solid var(--b2);border-radius:9px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,68,102,.1),0 0 60px rgba(255,68,102,.05),0 20px 80px rgba(0,0,0,.95)}
+
+/* titlebar */
+.tbar{background:var(--bg3);border-bottom:1px solid var(--b2);padding:10px 16px;display:flex;align-items:center;gap:10px;user-select:none}
+.tl{display:flex;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%}.dot.r{background:#ff5f56}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.ttl{flex:1;text-align:center;font-size:12px;color:var(--t2);letter-spacing:.06em}.ttl b{color:var(--lb)}
+
+/* logobar */
+.lbar{background:var(--bg2);border-bottom:1px solid var(--b1);padding:7px 18px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:8px}
+.logo-e{font-size:19px;filter:drop-shadow(0 0 8px #ff4466)}
+.logo-n{font-size:14px;font-weight:700;color:var(--lb);letter-spacing:.14em;text-shadow:0 0 20px rgba(255,68,102,.4)}
+.logo-s{font-size:9px;color:var(--t3);letter-spacing:.2em;margin-top:1px}
+.navtabs{display:flex;gap:3px}
+.ntab{padding:3px 12px;font-size:11px;color:var(--t3);border:1px solid transparent;border-radius:3px;cursor:pointer;letter-spacing:.05em;font-family:inherit;background:none;transition:all .15s}
+.ntab:hover{color:var(--t1);border-color:var(--b2)}.ntab.on{color:var(--lb);border-color:var(--lb);background:rgba(255,68,102,.07)}
+
+/* stat bar */
+.sbar{background:var(--panel);border-bottom:1px solid var(--b1);padding:9px 20px;display:flex;gap:28px;flex-wrap:wrap}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat-l{font-size:10px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase}
+.stat-v{font-size:13px;font-weight:600}
+.sv-w{color:var(--white)}.sv-g{color:var(--green)}.sv-y{color:var(--yellow)}.sv-lb{color:var(--lb)}.sv-mg{color:var(--mg)}.sv-cy{color:var(--cyan)}
+
+/* connection + scan row */
+.cbar{background:var(--bg2);border-bottom:1px solid var(--b2);padding:6px 18px;display:flex;align-items:center;gap:10px;font-size:11px;flex-wrap:wrap}
+.badge{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.05em;white-space:nowrap}
+.b-live{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.b-err{background:rgba(255,51,85,.1);color:var(--red);border:1px solid rgba(255,51,85,.3)}
+.b-wait{background:rgba(0,204,255,.08);color:var(--cyan);border:1px solid rgba(0,204,255,.25)}
+.b-mg{background:rgba(167,139,250,.1);color:var(--mg);border:1px solid rgba(167,139,250,.3)}
+.cbar-info{color:var(--t2);font-size:11px}
+.cbar-right{margin-left:auto;color:var(--t3);font-size:11px}
+
+/* MAIN GRID: big table left, feed right */
+.main{display:grid;grid-template-columns:1fr 390px;min-height:420px}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;background:var(--bg);border-right:1px solid var(--b2)}
+table{width:100%;border-collapse:collapse;min-width:700px}
+thead tr{background:var(--bg3);border-bottom:1px solid var(--b2);position:sticky;top:0;z-index:10}
+th{padding:7px 10px;text-align:left;color:var(--t3);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+th:first-child{text-align:center;width:32px}
+tbody tr{border-bottom:1px solid rgba(26,26,34,.9);transition:background .12s;cursor:pointer}
+tbody tr:hover{background:rgba(255,68,102,.035)}
+td{padding:7px 10px;font-size:12px;white-space:nowrap}
+.td-n{text-align:center;color:var(--t3);font-size:11px}
+.cc{display:flex;align-items:center;gap:5px;color:var(--t2)}
+.cid{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green)}
+.tok{font-weight:700;letter-spacing:.04em;font-size:12px}
+.mcap{color:var(--white);font-weight:500}
+.age-c{color:var(--t2)}
+.up{color:var(--green)}.up::before{content:'▲ ';font-size:9px}
+.dn{color:var(--red)}.dn::before{content:'▼ ';font-size:9px}
+/* token color wheel */
+.c0{color:#00ccff}.c1{color:#00ff88}.c2{color:#ff8800}.c3{color:#aa66ff}
+.c4{color:#ff6688}.c5{color:#ffcc00}.c6{color:#66ffcc}.c7{color:#ff99cc}
+.c8{color:#99ccff}.c9{color:#aaffaa}
+/* row animations */
+@keyframes rowIn{from{opacity:0;background:rgba(255,68,102,.12);transform:translateX(-4px)}to{opacity:1;background:transparent;transform:none}}
+@keyframes rowMg{from{opacity:0;background:rgba(167,139,250,.15)}to{opacity:1;background:transparent}}
+@keyframes fgrow{0%,100%{background:transparent}45%{background:rgba(0,255,136,.09)}}
+@keyframes frow{0%,100%{background:transparent}45%{background:rgba(255,51,85,.09)}}
+tbody tr.anim-new{animation:rowIn .5s ease both}
+tbody tr.anim-mg{animation:rowMg .6s ease both}
+tbody tr.anim-buy{animation:fgrow .5s ease}
+tbody tr.anim-sell{animation:frow .5s ease}
+
+/* progress bar in vol cell */
+.vol-wrap{position:relative}
+.vol-bar{position:absolute;left:0;bottom:0;height:2px;background:rgba(255,68,102,.4);border-radius:1px;max-width:100%;transition:width .7s ease}
+
+/* ── FEED ── */
+.feed{display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.feed-hdr{background:var(--bg3);border-bottom:1px solid var(--b2);padding:8px 14px;display:flex;align-items:center;gap:8px}
+.feed-title{font-size:12px;font-weight:600;color:var(--white);letter-spacing:.05em}
+.feed-tabs{display:flex;gap:3px;margin-left:auto}
+.ftab{padding:2px 9px;font-size:10px;border:1px solid var(--b2);border-radius:3px;cursor:pointer;color:var(--t3);background:none;font-family:inherit;letter-spacing:.04em;transition:all .14s}
+.ftab:hover{color:var(--t1);border-color:var(--t3)}
+.ftab.on-mg{color:var(--mg);border-color:var(--mg);background:rgba(167,139,250,.08)}
+.ftab.on-tr{color:var(--green);border-color:var(--green);background:rgba(0,255,136,.06)}
+.ftab.on-nw{color:var(--cyan);border-color:var(--cyan);background:rgba(0,204,255,.06)}
+
+.feed-cnt{background:var(--bg2);border-bottom:1px solid var(--b1);padding:5px 14px;display:flex;gap:20px;font-size:11px;color:var(--t2)}
+.fcn{font-weight:700}.fcn-mg{color:var(--mg)}.fcn-tr{color:var(--green)}.fcn-nw{color:var(--cyan)}
+
+.feed-list{overflow-y:auto;flex:1;max-height:500px}
+.feed-list::-webkit-scrollbar{width:3px}
+.feed-list::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* feed items */
+.fi{padding:9px 14px;border-bottom:1px solid rgba(26,26,34,.7);display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:background .1s;animation:fiIn .3s ease both;font-size:11px}
+.fi:hover{background:rgba(255,255,255,.018)}
+@keyframes fiIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.fi.fi-mg{border-left:3px solid var(--mg)}
+.fi.fi-mg.fi-fresh{animation:fiIn .3s ease, mgPop 1.5s ease}
+@keyframes mgPop{0%{box-shadow:inset 3px 0 20px rgba(167,139,250,.25)}100%{box-shadow:none}}
+.fi-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.fi-b{padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.05em}
+.fi-b.MG{background:rgba(167,139,250,.18);color:var(--mg);border:1px solid rgba(167,139,250,.4)}
+.fi-b.BUY{background:rgba(0,255,136,.14);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.fi-b.SELL{background:rgba(255,51,85,.14);color:var(--red);border:1px solid rgba(255,51,85,.3)}
+.fi-b.NEW{background:rgba(0,204,255,.14);color:var(--cyan);border:1px solid rgba(0,204,255,.3)}
+.fi-sym{font-weight:700;font-size:12px}
+.fi-sym.mg{color:var(--mg)}.fi-sym.buy{color:var(--green)}.fi-sym.sell{color:var(--red)}.fi-sym.new{color:var(--cyan)}
+.fi-t{color:var(--t3);font-size:10px;margin-left:auto}
+.fi-row{display:flex;gap:9px;flex-wrap:wrap;color:var(--t2)}
+.fl{color:var(--t3)}.fv{color:var(--t1)}.fv-g{color:var(--green);font-weight:600}.fv-r{color:var(--red);font-weight:600}.fv-go{color:var(--gold);font-weight:600}
+.fi-addr{font-size:10px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px}
+.fi-addr a{color:var(--t3);text-decoration:none}.fi-addr a:hover{color:var(--lb)}
+
+/* empty state */
+.empty{padding:30px 14px;text-align:center;color:var(--t3);font-size:11px;line-height:1.8}
+
+/* status bar */
+.stbar{background:var(--bg3);border-top:1px solid var(--b2);padding:6px 20px;display:flex;align-items:center;gap:16px;font-size:11px;color:var(--t2)}
+.st-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);animation:pls 1.5s infinite}
+@keyframes pls{0%,100%{opacity:1}50%{opacity:.3}}
+.st-mode{margin-left:auto;color:var(--t3)}
+
+@media(max-width:900px){body{padding:0}.win{border-radius:0}.main{grid-template-columns:1fr}.feed{border-top:1px solid var(--b2)}.navtabs{display:none}}
+</style>
+</head>
+<body>
+<div class="win">
+
+  <!-- Title bar -->
+  <div class="tbar">
+    <div class="tl"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+    <div class="ttl"><b>lobster</b> — pump.fun live — SOL</div>
+    <div style="width:50px"></div>
+  </div>
+
+  <!-- Logo + nav -->
+  <div class="lbar">
+    <div class="logo">
+      <span class="logo-e">🦞</span>
+      <div><div class="logo-n">LOBSTER</div><div class="logo-s">TERMINAL</div></div>
+    </div>
+    <div class="navtabs">
+      <button class="ntab on" onclick="setView(this,'new')">NEW TOKENS</button>
+      <button class="ntab"    onclick="setView(this,'trades')">ALL TRADES</button>
+      <button class="ntab"    onclick="setView(this,'migrate')">MIGRATED</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="sbar">
+    <div class="stat"><div class="stat-l">Tokens seen</div><div class="stat-v sv-y" id="st-seen">0</div></div>
+    <div class="stat"><div class="stat-l">New today</div><div class="stat-v sv-cy" id="st-new">0</div></div>
+    <div class="stat"><div class="stat-l">Migrations</div><div class="stat-v sv-mg" id="st-mg">0</div></div>
+    <div class="stat"><div class="stat-l">Trades</div><div class="stat-v sv-g" id="st-tr">0</div></div>
+    <div class="stat"><div class="stat-l">Vol total ~</div><div class="stat-v sv-w" id="st-vol">$0</div></div>
+    <div class="stat"><div class="stat-l">Top token</div><div class="stat-v sv-lb" id="st-top">—</div></div>
+    <div class="stat"><div class="stat-l">WS status</div><div class="stat-v" id="st-ws" style="color:var(--cyan)">connecting…</div></div>
+  </div>
+
+  <!-- Connection bar -->
+  <div class="cbar">
+    <span id="b-ws"  class="badge b-wait">⚡ CONNECTING</span>
+    <span id="b-mg"  class="badge b-wait">🔀 MIGRATION</span>
+    <span id="b-nw"  class="badge b-wait">✦ NEW TOKEN</span>
+    <span class="cbar-info" id="c-info">Connecting to wss://pumpportal.fun/api/data …</span>
+    <span class="cbar-right" id="c-time"></span>
+  </div>
+
+  <!-- Main layout -->
+  <div class="main">
+
+    <!-- Table -->
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Token</th>
+            <th>Name</th>
+            <th>Sol Amt</th>
+            <th>Market Cap</th>
+            <th>Type</th>
+            <th>Age</th>
+            <th>Mint</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="8" style="padding:36px;text-align:center;color:var(--t3)">
+            Connecting to PumpPortal WebSocket…<br>
+            <span style="color:var(--t3);font-size:11px">tokens will appear in real-time</span>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Feed -->
+    <div class="feed">
+      <div class="feed-hdr">
+        <span style="font-size:13px">⚡</span>
+        <span class="feed-title">Live Feed</span>
+        <div class="feed-tabs">
+          <button class="ftab on-nw" id="ft-nw"  onclick="switchFeed('nw')">NEW</button>
+          <button class="ftab"       id="ft-tr"  onclick="switchFeed('tr')">TRADES</button>
+          <button class="ftab"       id="ft-mg"  onclick="switchFeed('mg')">MIGRATED</button>
+        </div>
+      </div>
+      <div class="feed-cnt">
+        <span><span class="fcn fcn-nw" id="cnt-nw">0</span> new</span>
+        <span><span class="fcn fcn-tr" id="cnt-tr">0</span> trades</span>
+        <span><span class="fcn fcn-mg" id="cnt-mg">0</span> migrated</span>
+      </div>
+      <div class="feed-list" id="feed-list">
+        <div class="empty">Waiting for PumpPortal events…<br><span style="font-size:10px">wss://pumpportal.fun/api/data</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Status bar -->
+  <div class="stbar">
+    <span style="color:var(--lb);font-weight:700;letter-spacing:.08em">SOL</span>
+    <span class="st-dot"></span>
+    <span id="clock" style="font-variant-numeric:tabular-nums;letter-spacing:.05em"></span>
+    <span>|</span>
+    <span>pump.fun · pumpportal WS</span>
+    <span class="st-mode">LOBSTER TERMINAL v5.0</span>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+//  CONFIG
+// ─────────────────────────────────────────────────────────────────────────────
+const WS_URL   = 'wss://pumpportal.fun/api/data';
+const SOL_USD  = 150;   // rough estimate for display
+const MAX_ROWS = 50;    // max rows in table
+const MAX_FEED = 100;   // max items per feed queue
+const MAX_TABLE_DISPLAY = 30;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────────────────────────────────────
+let ws          = null;
+let wsOpen      = false;
+let tableRows   = [];    // [{key, sym, name, sol, mc, type, ts, mint, sig}]
+let feedMode    = 'nw';
+let currentView = 'new'; // 'new' | 'trades' | 'migrate'
+let totalVol    = 0;
+let tokenCounts = { new: 0, trades: 0, migrate: 0 };
+const queues    = { nw: [], tr: [], mg: [] };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  UTILS
+// ─────────────────────────────────────────────────────────────────────────────
+const pad  = n => String(n).padStart(2,'0');
+const ts   = () => { const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const fmt$ = n => {
+  if (!n && n!==0) return '—';
+  if (n>=1e9)  return '$'+(n/1e9).toFixed(2)+'B';
+  if (n>=1e6)  return '$'+(n/1e6).toFixed(2)+'M';
+  if (n>=1e3)  return '$'+(n/1e3).toFixed(1)+'K';
+  return '$'+n.toFixed(0);
+};
+const fmtSol = n => {
+  if (!n && n!==0) return '—';
+  const v = typeof n === 'number' ? n : parseFloat(n);
+  return isNaN(v) ? '—' : v.toFixed(3)+' ◎';
+};
+const fmtAge = ts_ms => {
+  const s = (Date.now()-ts_ms)/1000;
+  if(s<60)   return Math.floor(s)+'s';
+  if(s<3600) return Math.floor(s/60)+'m';
+  return Math.floor(s/3600)+'h';
+};
+const short = (s,n=8) => s&&s.length>n ? s.slice(0,n)+'…' : (s||'');
+const pumpUrl    = m => `https://pump.fun/coin/${m}`;
+const solscanTx  = s => `https://solscan.io/tx/${s}`;
+const solscanTok = m => `https://solscan.io/token/${m}`;
+const setBadge = (id,cls,txt) => { const e=document.getElementById(id); e.className='badge '+cls; e.textContent=txt; };
+const COLORS = ['c0','c1','c2','c3','c4','c5','c6','c7','c8','c9'];
+let colorIdx = 0;
+const nextColor = () => COLORS[(colorIdx++)%COLORS.length];
+const symbolColors = {};
+const colorFor = sym => { if(!symbolColors[sym]) symbolColors[sym]=nextColor(); return symbolColors[sym]; };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CLOCK
+// ─────────────────────────────────────────────────────────────────────────────
+(function tick(){
+  document.getElementById('clock').textContent = ts();
+  document.getElementById('c-time').textContent = new Date().toLocaleDateString('pt-BR');
+  setTimeout(tick,1000);
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  NAV / VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+function setView(el, view){
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  currentView = view;
+  renderTable();
+}
+function switchFeed(m){
+  feedMode = m;
+  document.getElementById('ft-nw').className = 'ftab'+(m==='nw'?' on-nw':'');
+  document.getElementById('ft-tr').className = 'ftab'+(m==='tr'?' on-tr':'');
+  document.getElementById('ft-mg').className = 'ftab'+(m==='mg'?' on-mg':'');
+  renderFeedList();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  WEBSOCKET
+// ─────────────────────────────────────────────────────────────────────────────
+function connect(){
+  if(ws){ try{ ws.close(); }catch(e){} }
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    wsOpen = true;
+
+    // ── Subscribe to all three streams on the SAME connection ──
+    ws.send(JSON.stringify({ method: 'subscribeNewToken' }));
+    ws.send(JSON.stringify({ method: 'subscribeMigration' }));
+
+    setBadge('b-ws','b-live','⚡ WS LIVE');
+    setBadge('b-mg','b-mg','🔀 MIGR ON');
+    setBadge('b-nw','b-live','✦ NEW ON');
+    document.getElementById('st-ws').textContent = 'live';
+    document.getElementById('st-ws').style.color = 'var(--green)';
+    document.getElementById('c-info').textContent = 'Connected · subscribeNewToken + subscribeMigration active';
+  };
+
+  ws.onmessage = e => {
+    try{ onMsg(JSON.parse(e.data)); }catch(err){ console.warn('parse err', err); }
+  };
+
+  ws.onclose = () => {
+    wsOpen = false;
+    setBadge('b-ws','b-err','⚡ WS OFF');
+    setBadge('b-mg','b-err','🔀 MIGR OFF');
+    setBadge('b-nw','b-err','✦ NEW OFF');
+    document.getElementById('st-ws').textContent = 'reconnecting…';
+    document.getElementById('st-ws').style.color = 'var(--red)';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = err => {
+    setBadge('b-ws','b-err','⚡ WS ERR');
+    document.getElementById('c-info').textContent = 'WebSocket error — will retry';
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MESSAGE HANDLER
+//  PumpPortal sends:
+//    New token:  txType = "create"
+//    Trade:      txType = "buy" | "sell"
+//    Migration:  txType = "migrate"  (or no txType but has bondingCurveKey)
+// ─────────────────────────────────────────────────────────────────────────────
+function onMsg(d){
+  const t = ts();
+  const mint = d.mint || '';
+  const sym  = d.symbol || (mint ? mint.slice(0,6)+'…' : '???');
+  const name = d.name   || sym;
+
+  // ── Detect type ──────────────────────────────────────────────────────────
+  let type = d.txType; // "create" | "buy" | "sell" | "migrate" | undefined
+
+  // Some PumpPortal versions send migration without txType but with bondingCurveKey
+  if (!type && d.bondingCurveKey) type = 'migrate';
+
+  // ── Handle by type ───────────────────────────────────────────────────────
+
+  if (type === 'create') {
+    // SOL amount is initialBuy in tokens normally, but marketCapSol is useful
+    const mcSol = parseFloat(d.marketCapSol) || 0;
+    const mcUsd = mcSol * SOL_USD;
+    const initSol = parseFloat(d.solAmount) || 0; // SOL used in first buy
+    totalVol += initSol * SOL_USD;
+
+    tokenCounts.new++;
+    document.getElementById('st-new').textContent = tokenCounts.new;
+    document.getElementById('st-seen').textContent = tokenCounts.new + tokenCounts.migrate;
+    document.getElementById('st-vol').textContent  = fmt$(totalVol);
+    document.getElementById('st-top').textContent  = sym;
+
+    // Add to table
+    addRow({ sym, name, sol: initSol, mc: mcUsd, type: 'NEW', ts: Date.now(), mint, sig: d.signature||'' });
+
+    // Add to feed
+    pushFeed('nw', buildFeedItem({
+      badge:'NEW', bclass:'NEW', symClass:'new',
+      sym, t,
+      rows:[
+        {l:'name', v:name},
+        {l:'init mc', v:fmt$(mcUsd), vc:'fv-go'},
+        {l:'dev', v:short(d.traderPublicKey||'',10)},
+      ],
+      mint, sig:d.signature||''
+    }));
+
+    // Auto-subscribe trades for this new token
+    if(wsOpen && mint){
+      ws.send(JSON.stringify({ method:'subscribeTokenTrade', keys:[mint] }));
+    }
+
+  } else if (type === 'buy' || type === 'sell') {
+    const isBuy  = type === 'buy';
+    const solAmt = parseFloat(d.solAmount||0) / 1e9; // lamports → SOL
+    const usdAmt = solAmt * SOL_USD;
+    totalVol += usdAmt;
+
+    tokenCounts.trades++;
+    document.getElementById('st-tr').textContent  = tokenCounts.trades.toLocaleString();
+    document.getElementById('st-vol').textContent = fmt$(totalVol);
+
+    addRow({ sym, name, sol: solAmt, mc: parseFloat(d.marketCapSol||0)*SOL_USD, type: type.toUpperCase(), ts: Date.now(), mint, sig: d.signature||'' });
+
+    pushFeed('tr', buildFeedItem({
+      badge: isBuy?'BUY':'SELL',
+      bclass: isBuy?'BUY':'SELL',
+      symClass: isBuy?'buy':'sell',
+      sym, t,
+      rows:[
+        {l:'amt',  v:fmtSol(solAmt),    vc: isBuy?'fv-g':'fv-r'},
+        {l:'≈',    v:fmt$(usdAmt)},
+        {l:'mc~',  v:fmt$(parseFloat(d.marketCapSol||0)*SOL_USD), vc:'fv-go'},
+        {l:'by',   v:short(d.traderPublicKey||'',10)},
+      ],
+      mint, sig: d.signature||''
+    }));
+
+    flashRow(sym, isBuy);
+
+  } else if (type === 'migrate') {
+    const mcSol = parseFloat(d.marketCapSol) || 0;
+    const liqSol = parseFloat(d.vSolInBondingCurve) || 0;
+
+    tokenCounts.migrate++;
+    document.getElementById('st-mg').textContent   = tokenCounts.migrate;
+    document.getElementById('st-seen').textContent = tokenCounts.new + tokenCounts.migrate;
+
+    addRow({ sym, name, sol: liqSol, mc: mcSol*SOL_USD, type:'MIGRATED', ts: Date.now(), mint, sig: d.signature||'', isMigrate:true });
+
+    pushFeed('mg', buildFeedItem({
+      badge:'MG', bclass:'MG', symClass:'mg', isMigrate:true,
+      sym, t,
+      rows:[
+        {l:'name',  v:name},
+        {l:'mc~',   v:fmt$(mcSol*SOL_USD), vc:'fv-go'},
+        {l:'liq~',  v:fmtSol(liqSol), vc:'fv-g'},
+      ],
+      mint, sig: d.signature||''
+    }));
+
+    if(wsOpen && mint){
+      ws.send(JSON.stringify({ method:'subscribeTokenTrade', keys:[mint] }));
+    }
+  }
+  // (ignore unknown messages silently)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TABLE
+// ─────────────────────────────────────────────────────────────────────────────
+function addRow(row){
+  // Add to front
+  tableRows.unshift(row);
+  // Keep max
+  if(tableRows.length > MAX_ROWS) tableRows.pop();
+  renderTableRow(row, true); // fast prepend
+}
+
+function renderTableRow(row, prepend=false){
+  const tbody = document.getElementById('tbody');
+  // Remove placeholder if present
+  const placeholder = tbody.querySelector('td[colspan]');
+  if(placeholder) placeholder.parentElement.remove();
+
+  // Filter rows by current view
+  if(currentView === 'migrate' && row.type !== 'MIGRATED') return;
+  if(currentView === 'trades'  && row.type !== 'BUY' && row.type !== 'SELL') return;
+  // 'new' view shows everything
+
+  const cl = colorFor(row.sym);
+  const typeCl = row.type==='BUY'?'up':row.type==='SELL'?'dn':row.type==='MIGRATED'?'sv-mg':'sv-cy';
+  const typeColor = row.type==='BUY'?'var(--green)':row.type==='SELL'?'var(--red)':row.type==='MIGRATED'?'var(--mg)':'var(--cyan)';
+
+  const tr = document.createElement('tr');
+  tr.className = row.isMigrate ? 'anim-mg' : (row.type==='BUY'?'anim-buy':row.type==='SELL'?'anim-sell':'anim-new');
+  tr.onclick = () => window.open(pumpUrl(row.mint), '_blank');
+
+  // row number = current tbody child count + 1
+  const num = prepend ? 1 : tbody.children.length+1;
+
+  tr.innerHTML = `
+    <td class="td-n">—</td>
+    <td><span class="tok ${cl}">${row.sym}</span></td>
+    <td style="color:var(--t2);max-width:120px;overflow:hidden;text-overflow:ellipsis">${row.name}</td>
+    <td style="color:var(--white)">${fmtSol(row.sol)}</td>
+    <td class="mcap">${fmt$(row.mc)}</td>
+    <td><span style="color:${typeColor};font-weight:600;font-size:11px">${row.type}</span></td>
+    <td class="age-c" data-ts="${row.ts}">${fmtAge(row.ts)}</td>
+    <td class="fi-addr" style="font-size:10px;color:var(--t3)">
+      <a href="${solscanTok(row.mint)}" target="_blank" onclick="event.stopPropagation()">${row.mint.slice(0,18)}…</a>
+    </td>`;
+
+  if(prepend){
+    tbody.prepend(tr);
+    // trim if too many rows in DOM
+    while(tbody.children.length > MAX_TABLE_DISPLAY) tbody.removeChild(tbody.lastChild);
+    // renumber
+    renumber();
+  } else {
+    tbody.appendChild(tr);
+  }
+}
+
+function renderTable(){
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  const filtered = tableRows.filter(r => {
+    if(currentView==='migrate') return r.type==='MIGRATED';
+    if(currentView==='trades')  return r.type==='BUY'||r.type==='SELL';
+    return true;
+  });
+  if(!filtered.length){
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:30px;text-align:center;color:var(--t3)">No ${currentView} events yet…</td></tr>`;
+    return;
+  }
+  filtered.slice(0,MAX_TABLE_DISPLAY).forEach(r => renderTableRow(r, false));
+  renumber();
+}
+
+function renumber(){
+  document.querySelectorAll('#tbody tr .td-n').forEach((td,i)=>{ td.textContent=i+1; });
+}
+
+// Update ages every second
+setInterval(()=>{
+  document.querySelectorAll('#tbody td[data-ts]').forEach(td => {
+    td.textContent = fmtAge(parseInt(td.dataset.ts));
+  });
+},1000);
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  FEED
+// ─────────────────────────────────────────────────────────────────────────────
+function buildFeedItem({badge, bclass, symClass, sym, t, rows, mint, sig, isMigrate}){
+  const extraCls = isMigrate ? 'fi-mg fi-fresh' : '';
+  const addr = mint ? `<a href="${solscanTok(mint)}" target="_blank" onclick="event.stopPropagation()">${mint}</a>` : '';
+  const txLink = sig ? ` · <a href="${solscanTx(sig)}" target="_blank" onclick="event.stopPropagation()">tx↗</a>` : '';
+  const rowsHtml = rows.map(r=>`<span class="fl">${r.l}</span><span class="${r.vc||'fv'}">${r.v}</span>`).join('');
+  return `<div class="fi ${extraCls}" onclick="window.open('${pumpUrl(mint)}','_blank')">
+    <div class="fi-top">
+      <span class="fi-b ${bclass}">${badge}</span>
+      <span class="fi-sym ${symClass}">${sym}</span>
+      <span class="fi-t">${t}</span>
+    </div>
+    <div class="fi-row">${rowsHtml}</div>
+    <div class="fi-addr">${addr}${txLink}</div>
+  </div>`;
+}
+
+function pushFeed(type, html){
+  // Update counter element
+  const map = {nw:'cnt-nw', tr:'cnt-tr', mg:'cnt-mg'};
+  const qmap = {nw: tokenCounts.new, tr: tokenCounts.trades, mg: tokenCounts.migrate};
+  document.getElementById(map[type]).textContent = Object.values({nw:tokenCounts.new,tr:tokenCounts.trades,mg:tokenCounts.migrate})[['nw','tr','mg'].indexOf(type)];
+
+  queues[type].unshift(html);
+  if(queues[type].length > MAX_FEED) queues[type].pop();
+
+  // update counter display
+  document.getElementById('cnt-nw').textContent = tokenCounts.new.toLocaleString();
+  document.getElementById('cnt-tr').textContent = tokenCounts.trades.toLocaleString();
+  document.getElementById('cnt-mg').textContent = tokenCounts.migrate;
+
+  if(feedMode !== type) return;
+
+  const list = document.getElementById('feed-list');
+  // Remove empty placeholder
+  const empty = list.querySelector('.empty');
+  if(empty) empty.remove();
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const el = tmp.firstElementChild;
+  list.prepend(el);
+  while(list.children.length > MAX_FEED) list.removeChild(list.lastChild);
+}
+
+function renderFeedList(){
+  const list = document.getElementById('feed-list');
+  const items = queues[feedMode];
+  if(!items.length){
+    list.innerHTML = `<div class="empty">No ${feedMode} events yet…<br><span style="font-size:10px">Waiting on WS</span></div>`;
+    return;
+  }
+  list.innerHTML = '';
+  items.forEach(html => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    list.appendChild(tmp.firstElementChild);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  FLASH ROW
+// ─────────────────────────────────────────────────────────────────────────────
+function flashRow(sym, isBuy){
+  document.querySelectorAll('#tbody tr').forEach(r=>{
+    const tok = r.querySelector('.tok');
+    if(tok && tok.textContent===sym){
+      r.classList.remove('anim-buy','anim-sell');
+      void r.offsetWidth;
+      r.classList.add(isBuy?'anim-buy':'anim-sell');
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>
